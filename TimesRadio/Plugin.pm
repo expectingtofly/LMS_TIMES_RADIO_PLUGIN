@@ -8,10 +8,10 @@ use File::Spec::Functions qw(:ALL);
 use Slim::Utils::Log;
 
 use Plugins::TimesRadio::TimesRadioAPI;
+use Plugins::TimesRadio::ProtocolHandler;
 
-my $log = Slim::Utils::Log->addLogCategory(
-    {
-        'category'     => 'plugin.TimesRadio',
+my $log = Slim::Utils::Log->addLogCategory(    {
+        'category'     => 'plugin.timesradio',
         'defaultLevel' => 'ERROR',
         'description'  => getDisplayName(),
     }

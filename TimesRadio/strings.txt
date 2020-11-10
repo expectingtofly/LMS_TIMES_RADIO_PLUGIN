@@ -2,4 +2,4 @@ PLUGIN_TIMESRADIO
 	EN	Times Radio
 
 PLUGIN_TIMESRADIO_DESC
-	EN	Provides access to Times Radio 7 Days Catch up listening
+	EN	Times Radio Live and 7 day catch up listening with On Air data and images.
