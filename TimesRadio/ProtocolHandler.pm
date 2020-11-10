@@ -22,10 +22,6 @@ sub flushCache { $cache->cleanup(); }
 
 Slim::Player::ProtocolHandlers->registerHandler('times', __PACKAGE__);
 
-sub isRemote { 1 }
-
-sub isAudio { 1 }
-
 
 sub new {
 	my $class  = shift;
@@ -71,7 +67,21 @@ sub close {
 
 sub scanUrl {
 	my ($class, $url, $args) = @_;
-	$args->{cb}->( $args->{song}->currentTrack() );
+
+	main::DEBUGLOG && $log->is_debug && $log->debug("scanurl $url");
+
+	if (Plugins::TimesRadio::ProtocolHandler::getType($url) eq 'live') {
+		$args->{cb}->( $args->{song}->currentTrack() );
+	}else{
+		my $newurl = Plugins::TimesRadio::ProtocolHandler::getAODUrl($url);
+		main::DEBUGLOG && $log->is_debug && $log->debug("scanurl AOD $newurl");
+		my $realcb = $args->{cb};
+		$args->{cb} = sub {
+			main::DEBUGLOG && $log->is_debug && $log->debug(Dumper($args->{song}->currentTrack()));
+			$realcb->($args->{song}->currentTrack());
+		  };
+		  Slim::Utils::Scanner::Remote->scanURL($newurl, $args);
+	}
 }
 
 
@@ -101,6 +111,7 @@ sub getNextTrack {
 					my $http = shift;
 					$trackurl = $http->request->uri->as_string;
 					$song->streamUrl($trackurl);
+					$http->disconnect;
 					$successCb->();
 				},
 				onError => sub {
@@ -157,7 +168,7 @@ sub getMetadataFor {
 	}elsif ( my $meta = $cache->get('tr:meta-' . Plugins::TimesRadio::ProtocolHandler::getId($url))) {
 		main::DEBUGLOG && $log->is_debug && $log->debug("cache hit: AOD");
 		return $meta;
-	}	
+	}
 	main::DEBUGLOG && $log->is_debug && $log->debug("No cache");
 	if ( $client->master->pluginData('fetchingTRMeta') ) {
 		main::DEBUGLOG && $log->is_debug && $log->debug("already fetching metadata:");
@@ -165,7 +176,6 @@ sub getMetadataFor {
 			type  => 'TimesRadio',
 			title => $url,
 			icon  => $icon,
-			cover => $icon,
 		};
 	}
 	$client->master->pluginData( fetchingTRMeta => 1);
@@ -189,23 +199,20 @@ sub getMetadataFor {
 					type  => 'TimesRadio',
 					title => $url,
 					icon  => $icon,
-					cover => $icon,
 				};
 
-				#try again in 2 minutes, we don't want to flood.				
+				#try again in 2 minutes, we don't want to flood.
 				$cache->set( "tr:meta-live", $meta, 120 );
 				$client->master->pluginData( fetchingTRMeta => 0 );
 			}
 		);
 	}else {
-		main::DEBUGLOG && $log->is_debug && $log->debug("Getting AOD");		
+		main::DEBUGLOG && $log->is_debug && $log->debug("Getting AOD");
 		Plugins::TimesRadio::TimesRadioAPI::getAOD(
 			Plugins::TimesRadio::ProtocolHandler::getId($url),
 			sub {
 				my $item = shift;
-				$log->debug(Dumper($item));			;
-
-				my $title       = $item->{title};
+				my $title       = $item->{title} . ' ' . substr($item->{startTime},0,10);
 				my $description = $item->{description};
 				my $image = $item->{images}[0]->{url};
 				if (!(defined $image)) {
@@ -220,16 +227,16 @@ sub getMetadataFor {
 				};
 				$cache->set('tr:meta-' . Plugins::TimesRadio::ProtocolHandler::getId($url), $meta, 3600 );
 				$client->master->pluginData( fetchingTRMeta => 0 );
-				main::DEBUGLOG && $log->is_debug && $log->debug("Fetched AOD");		
+				main::DEBUGLOG && $log->is_debug && $log->debug("Fetched AOD");
 			},
 			sub {
-				my $meta =            {
+				my $meta =    {
 					type  => 'TimesRadio',
 					title => $url,
 					icon  => $icon,
 					cover => $icon,
 				};
-				main::DEBUGLOG && $log->is_debug && $log->debug("AOD Failed");		
+				main::DEBUGLOG && $log->is_debug && $log->debug("AOD Failed");
 
 				#try again in 2 minutes, we don't want to flood.
 				$cache->set('tr:meta-' . Plugins::TimesRadio::ProtocolHandler::getId($url), $meta, 120 );

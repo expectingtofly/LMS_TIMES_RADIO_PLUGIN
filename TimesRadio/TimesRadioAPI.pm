@@ -33,9 +33,9 @@ sub toplevel {
 			'on_select' => 'play',
 		},
 		{
-			'name'      => 'Catch Up Schedule',
+			'name'      => 'Schedule (7 Day Catch Up)',
 			'url'       => \&createDayMenu,
-			'icon' 		=> 'plugins/TimesRadio/html/images/TimesRadio.png',
+			'icon' 		=> 'plugins/TimesRadio/html/images/schedule.png',
 			'type'      => 'link',
 			'passthrough' => [
 				{
@@ -110,16 +110,28 @@ sub _parseSchedule {
 		my $description = $item->{description};
 
 		my $track = $item->{recording}->{url};
-
+		if (!(defined $track)) {
+			$track = 'NO TRACK';
+		}
+		
 		my $image = $item->{images}[0]->{url};
 		if (!(defined $image)) {
 			$image = 'plugins/TimesRadio/html/images/TimesRadio.png';
 		}
 
+		my $url = 'times://_aod_' . $item->{id} . '_' . URI::Escape::uri_escape($track);
+
+		if (time() ~~ [str2time( $item->{'startTime'}) .. str2time( $item->{'endTime'})])
+		{
+			$title = 'NOW PLAYNG : 	' . $title;
+			$url = 'times://_live';
+		}
+		
+
 		push @$menu,
 		  {
 			'name'      => $sttime . ' ' . $title,
-			'url'       => 'times://_aod_' . $item->{id} . '_' . URI::Escape::uri_escape($track),
+			'url'       => $url,
 			'icon'      => $image,
 			'type'      => 'audio',
 			'on_select' => 'play',
@@ -141,7 +153,7 @@ sub createDayMenu {
 	my $menu = [];
 	my $now = time();
 
-	for ( my $i = 0 ; $i < 7 ; $i++ ) {
+	for ( my $i = 0 ; $i < 8 ; $i++ ) {
 		my $d = '';
 		my $epoch = $now - ( 86400 * $i );
 		if ( $i == 0 ) {
