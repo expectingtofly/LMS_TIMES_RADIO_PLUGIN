@@ -5,8 +5,8 @@
 	<module>Plugins::TimesRadio::Plugin</module>
 	<version>2.0.2</version>
 	<description>PLUGIN_TIMESRADIO_DESC</description>
-	<creator>expectingtofly</creator>
-	<email></email>
+	<creator>ExpectingToFly</creator>
+	<email>stu@expectingtofly.co.uk</email>
 	<icon>plugins/TimesRadio/html/images/TimesRadio.png</icon>
 	<defaultState>enabled</defaultState>
 	<targetApplication>
