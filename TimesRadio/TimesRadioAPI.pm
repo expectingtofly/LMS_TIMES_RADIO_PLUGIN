@@ -121,7 +121,7 @@ sub _parseSchedule {
 
 		my $url = 'times://_aod_' . $item->{id} . '_' . URI::Escape::uri_escape($track);
 
-		if (time() ~~ [str2time( $item->{'startTime'}) .. str2time( $item->{'endTime'})])
+		if ((time() >= str2time( $item->{'startTime'})) && (time() < str2time( $item->{'endTime'})))
 		{
 			$title = 'NOW PLAYNG : 	' . $title;
 			$url = 'times://_live';
