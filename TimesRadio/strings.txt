@@ -3,3 +3,9 @@ PLUGIN_TIMESRADIO
 
 PLUGIN_TIMESRADIO_DESC
 	EN	Times Radio Live and 7 day catch up listening with On Air data and images.
+
+PLUGIN_TIMESRADIO_RADIOMENU
+	EN	Show in "Radio" Menu
+
+PLUGIN_TIMESRADIO_RADIOMENU_DESC
+	EN	Select this if you would rather Times Radio is located within the "Radio" menu rather than the "My Apps" menu.  Requires LMS restart.
