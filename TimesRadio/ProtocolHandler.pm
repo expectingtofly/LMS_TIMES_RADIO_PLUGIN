@@ -146,6 +146,54 @@ sub close {
 	$self->SUPER::close(@_);
 }
 
+sub canDirectStream {
+	my ($classOrSelf, $client, $url, $inType) = @_;
+	
+	main::DEBUGLOG && $log->is_debug && $log->debug('Never direct stream');
+
+	return 0;
+}
+
+sub canSeek {
+	my ( $class, $client, $song ) = @_;
+
+	my $masterUrl = $song->track()->url;
+
+	if (getType($masterUrl) eq 'aod') {
+		main::DEBUGLOG && $log->is_debug && $log->debug('Can Seek');
+		return 1;
+	}else {
+		return 0;
+	}
+}
+
+sub getSeekData {
+	my ( $class, $client, $song, $newtime ) = @_;
+	
+	my $bitrate = 0;
+	if (my $track = $song->currentTrack()) {
+		$bitrate = $track->bitrate();
+		main::INFOLOG && $log->info( "the track bitrate is $bitrate ");
+	}
+
+	return if ! $bitrate;
+
+	$bitrate /= 1000;
+
+	main::INFOLOG && $log->info( "Trying to seek $newtime seconds into $bitrate kbps" );
+
+	my $offset = int (( ( $bitrate * 1000 ) / 8 ) * $newtime);
+	$offset -= $offset % ($song->track->block_alignment || 1);
+
+	# this might be re-calculated by request() if direct streaming is disabled
+	return {
+		sourceStreamOffset   => $offset + $song->track->audio_offset,
+		timeOffset           => $newtime,
+	};
+}
+
+
+sub isRemote { 1 }
 
 sub scanUrl {
 	my ($class, $url, $args) = @_;
@@ -217,15 +265,7 @@ sub getNextTrack {
 
 sub getFormatForURL () { 'mp3' }
 
-
-sub canDirectStreamSong {
-	my ( $class, $client, $song ) = @_;
-
-	# We need to check with the base class (HTTP) to see if we
-	# are synced or if the user has set mp3StreamingMethod
-	return $class->SUPER::canDirectStream( $client, $song->streamUrl(), $class->getFormatForURL() );
-}
-
+	
 # If an audio stream fails, keep playing
 sub handleDirectError {
 	my ( $class, $client, $url, $response, $status_line ) = @_;
@@ -267,6 +307,10 @@ sub getMetadataFor {
 
 	} elsif ( my $meta = $cache->get('tr:meta-' . Plugins::TimesRadio::ProtocolHandler::getId($url))) {
 		main::DEBUGLOG && $log->is_debug && $log->debug("cache hit: AOD");
+		my $song = $client->playingSong();
+		if ( $song && $song->currentTrack()->url eq $full_url ) {
+			$song->track->secs( $meta->{duration} );
+		}
 		return $meta;
 	}
 	main::DEBUGLOG && $log->is_debug && $log->debug("No cache");
@@ -285,9 +329,13 @@ sub getMetadataFor {
 		Plugins::TimesRadio::ProtocolHandler::getId($url),
 		sub {
 			my $item = shift;
+			
+
 			my $title       = $item->{title} . ' ' . substr($item->{startTime},0,10);
 			my $description = $item->{description};
 			my $image = $item->{images}[0]->{url};
+
+			my $duration = str2time($item->{endTime}) - str2time($item->{startTime});
 			if (!(defined $image)) {
 				$image = $icon;
 			}
@@ -297,8 +345,10 @@ sub getMetadataFor {
 				artist => $description,
 				icon  =>  $image,
 				cover =>  $image,
-			};
+				duration => $duration,
+			};			
 			$cache->set('tr:meta-' . Plugins::TimesRadio::ProtocolHandler::getId($url), $meta, 3600 );
+			main::DEBUGLOG && $log->is_debug && $log->debug("meta : " . Dumper($meta) );
 			$client->master->pluginData( fetchingTRMeta => 0 );
 			main::DEBUGLOG && $log->is_debug && $log->debug("Fetched AOD");
 		},
