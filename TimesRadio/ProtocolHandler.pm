@@ -167,32 +167,6 @@ sub canSeek {
 	}
 }
 
-sub getSeekData {
-	my ( $class, $client, $song, $newtime ) = @_;
-	
-	my $bitrate = 0;
-	if (my $track = $song->currentTrack()) {
-		$bitrate = $track->bitrate();
-		main::INFOLOG && $log->info( "the track bitrate is $bitrate ");
-	}
-
-	return if ! $bitrate;
-
-	$bitrate /= 1000;
-
-	main::INFOLOG && $log->info( "Trying to seek $newtime seconds into $bitrate kbps" );
-
-	my $offset = int (( ( $bitrate * 1000 ) / 8 ) * $newtime);
-	$offset -= $offset % ($song->track->block_alignment || 1);
-
-	# this might be re-calculated by request() if direct streaming is disabled
-	return {
-		sourceStreamOffset   => $offset + $song->track->audio_offset,
-		timeOffset           => $newtime,
-	};
-}
-
-
 sub isRemote { 1 }
 
 sub scanUrl {
@@ -209,6 +183,18 @@ sub scanUrl {
 		#let LMS sort out the real stream for seeking etc.
 		my $realcb = $args->{cb};
 		$args->{cb} = sub {
+			my $track = shift;
+
+			my $client = $args->{client};
+			my $song = $client->playingSong();
+			main::DEBUGLOG && $log->is_debug && $log->debug("Setting bitrate");
+			
+			if ( $song && $song->currentTrack()->url eq $url ) {
+				my $bitrate = $track->bitrate();
+				main::DEBUGLOG && $log->is_debug && $log->debug("bitrate is : $bitrate");
+				$song->bitrate($bitrate);				
+			}
+
 			$realcb->($args->{song}->currentTrack());
 		};
 		Slim::Utils::Scanner::Remote->scanURL($newurl, $args);
