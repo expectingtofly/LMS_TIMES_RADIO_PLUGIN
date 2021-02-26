@@ -3,15 +3,16 @@
 <extension>
 	<name>PLUGIN_TIMESRADIO</name>
 	<module>Plugins::TimesRadio::Plugin</module>
-	<version>2.1.0</version>
+	<version>2.1.5</version>
 	<description>PLUGIN_TIMESRADIO_DESC</description>
 	<creator>ExpectingToFly</creator>
-	<email>stu@expectingtofly.co.uk</email>
-	<icon>plugins/TimesRadio/html/images/TimesRadio.png</icon>
+	<homepageURL>https://github.com/expectingtofly/LMS_TIMES_RADIO_PLUGIN</homepageURL>
+	<icon>plugins/TimesRadio/html/images/TimesRadio_svg.png</icon>
 	<defaultState>enabled</defaultState>
 	<targetApplication>
 		<id>SlimServer</id>
 		<minVersion>7.9</minVersion>
         <maxVersion>*</maxVersion>
 	</targetApplication>
+	<optionsURL>plugins/TimesRadio/settings/basic.html</optionsURL>	
 </extension>

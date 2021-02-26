@@ -28,14 +28,14 @@ sub toplevel {
 		{
 			'name'      => 'Times Radio Live',
 			'url'       => 'times://_live',
-			'icon' 		=> 'plugins/TimesRadio/html/images/TimesRadio.png',
+			'icon' 		=> 'plugins/TimesRadio/html/images/TimesRadio_svg.png',
 			'type'      => 'audio',
 			'on_select' => 'play',
 		},
 		{
 			'name'      => 'Schedule (7 Day Catch Up)',
 			'url'       => \&createDayMenu,
-			'icon' 		=> 'plugins/TimesRadio/html/images/schedule.png',
+			'icon' 		=> 'plugins/TimesRadio/html/images/schedule_MTL_icon_calendar_today.png',
 			'type'      => 'link',
 			'passthrough' => [
 				{
