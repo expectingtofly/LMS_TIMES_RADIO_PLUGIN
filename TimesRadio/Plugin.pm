@@ -10,6 +10,7 @@ use Slim::Utils::Prefs;
 
 use Plugins::TimesRadio::TimesRadioAPI;
 use Plugins::TimesRadio::ProtocolHandler;
+use Plugins::TimesRadio::RadioFavourites;
 
 my $log = Slim::Utils::Log->addLogCategory(    {
         'category'     => 'plugin.timesradio',
@@ -47,6 +48,21 @@ sub initPlugin {
 	}
 
     return;
+}
+
+sub postinitPlugin {
+	my $class = shift;
+
+	if (Slim::Utils::PluginManager->isEnabled('Plugins::RadioFavourites::Plugin')) {
+		Plugins::RadioFavourites::Plugin::addHandler(
+			{
+				handlerFunctionKey => 'timesradio',      #The key to the handler				
+				handlerSub =>  \&Plugins::TimesRadio::RadioFavourites::getStationData          #The operation to handle getting the
+			}
+		);
+	}
+	Plugins::TimesRadio::TimesRadioAPI::init();
+	return;
 }
 
 sub getDisplayName { 'PLUGIN_TIMESRADIO' }
