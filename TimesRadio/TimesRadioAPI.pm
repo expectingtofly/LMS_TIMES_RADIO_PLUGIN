@@ -19,35 +19,68 @@ my $log = logger('plugin.timesradio');
 my $cache = Slim::Utils::Cache->new();
 sub flushCache { $cache->cleanup(); }
 
+my $isRadioFavourites;
+
+sub init {
+	$isRadioFavourites = Slim::Utils::PluginManager->isEnabled('Plugins::RadioFavourites::Plugin');
+}
 
 sub toplevel {
 	my ( $client, $callback, $args ) = @_;
 	$log->debug("++toplevel");
 
-	my $menu = [
-		{
-			'name'      => 'Times Radio Live',
-			'url'       => 'times://_live',
-			'icon' 		=> 'plugins/TimesRadio/html/images/TimesRadio_svg.png',
-			'type'      => 'audio',
-			'on_select' => 'play',
-		},
-		{
-			'name'      => 'Schedule (7 Day Catch Up)',
-			'url'       => \&createDayMenu,
-			'icon' 		=> 'plugins/TimesRadio/html/images/schedule_MTL_icon_calendar_today.png',
-			'type'      => 'link',
-			'passthrough' => [
-				{
-					codeRef   => 'createDayMenu'
-				}
-			],
-		}
-	];
+	my $itemActions = '';
+
+
+	my $menu = [];
+	my $live ={
+
+		'name'      	=> 'Times Radio Live',
+		'url'       	=> 'times://_live',
+		'icon' 			=> 'plugins/TimesRadio/html/images/TimesRadio_svg.png',
+		'type'      	=> 'audio',
+		'on_select' 	=> 'play',
+	};
+	if ($isRadioFavourites) {
+		$live->{itemActions} = getItemActions('Times Radio','times://_live', 'times');
+
+	}
+	push @$menu, $live;
+	push @$menu,
+	  {
+		'name'      => 'Schedule (7 Day Catch Up)',
+		'url'       => \&createDayMenu,
+		'icon' 		=> 'plugins/TimesRadio/html/images/schedule_MTL_icon_calendar_today.png',
+		'type'      => 'link',
+		'passthrough' => [
+			{
+				codeRef   => 'createDayMenu'
+			}
+		],
+	  };
 
 	$callback->($menu);
 	$log->debug("--toplevel");
 	return;
+}
+
+
+sub getItemActions {
+	my $name = shift;
+	my $url = shift;
+	my $key = shift;
+
+	return  {
+		info => {
+			command     => ['radiofavourites', 'addStation'],
+			fixedParams => {
+				name => $name,
+				stationKey => $key,
+				url => $url,
+				handlerFunctionKey => 'timesradio'
+			}
+		},
+	};
 }
 
 
@@ -113,7 +146,7 @@ sub _parseSchedule {
 		if (!(defined $track)) {
 			$track = 'NO TRACK';
 		}
-		
+
 		my $image = $item->{images}[0]->{url};
 		if (!(defined $image)) {
 			$image = 'plugins/TimesRadio/html/images/TimesRadio.png';
@@ -121,12 +154,11 @@ sub _parseSchedule {
 
 		my $url = 'times://_aod_' . $item->{id} . '_' . URI::Escape::uri_escape($track);
 
-		if ((time() >= str2time( $item->{'startTime'})) && (time() < str2time( $item->{'endTime'})))
-		{
+		if ((time() >= str2time( $item->{'startTime'})) && (time() < str2time( $item->{'endTime'}))){
 			$title = 'NOW PLAYNG : 	' . $title;
 			$url = 'times://_live';
 		}
-		
+
 
 		push @$menu,
 		  {
