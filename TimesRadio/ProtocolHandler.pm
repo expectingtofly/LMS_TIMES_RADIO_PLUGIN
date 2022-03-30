@@ -16,6 +16,7 @@ use Plugins::TimesRadio::TimesRadioAPI;
 
 use Data::Dumper;
 
+use constant URL_TIMESRADIO_LIVE => 'https://timesradio.wireless.radio/stream';
 
 my $log = logger('plugin.timesradio');
 my $cache = Slim::Utils::Cache->new();
@@ -83,7 +84,7 @@ sub readMetaData {
 				sub {
 					my $json = shift;
 					my $meta = {
-						type  => 'TimesRadio',
+						type  => 'MP3 (Times Radio)',
 						title =>  $json->{'data'}->{'radioOnAirNow'}->{'title'},
 						artist => $json->{'data'}->{'radioOnAirNow'}->{'description'},
 						icon  =>  $json->{'data'}->{'radioOnAirNow'}->{'images'}[0]->{'url'},
@@ -174,31 +175,36 @@ sub scanUrl {
 
 	main::DEBUGLOG && $log->is_debug && $log->debug("scanurl $url");
 
+	my $urlToScan = '';
+
 	if (Plugins::TimesRadio::ProtocolHandler::getType($url) eq 'live') {
-		$args->{cb}->( $args->{song}->currentTrack() );
+		$urlToScan = URL_TIMESRADIO_LIVE;
+		main::DEBUGLOG && $log->is_debug && $log->debug("scanurl LIVE $urlToScan");		
 	}else{
-		my $newurl = Plugins::TimesRadio::ProtocolHandler::getAODUrl($url);
-		main::DEBUGLOG && $log->is_debug && $log->debug("scanurl AOD $newurl");
-
-		#let LMS sort out the real stream for seeking etc.
-		my $realcb = $args->{cb};
-		$args->{cb} = sub {
-			my $track = shift;
-
-			my $client = $args->{client};
-			my $song = $client->playingSong();
-			main::DEBUGLOG && $log->is_debug && $log->debug("Setting bitrate");
-			
-			if ( $song && $song->currentTrack()->url eq $url ) {
-				my $bitrate = $track->bitrate();
-				main::DEBUGLOG && $log->is_debug && $log->debug("bitrate is : $bitrate");
-				$song->bitrate($bitrate);				
-			}
-
-			$realcb->($args->{song}->currentTrack());
-		};
-		Slim::Utils::Scanner::Remote->scanURL($newurl, $args);
+		$urlToScan = Plugins::TimesRadio::ProtocolHandler::getAODUrl($url);
+		main::DEBUGLOG && $log->is_debug && $log->debug("scanurl AOD $urlToScan");		
 	}
+
+	#let LMS sort out the real stream for seeking etc.
+	my $realcb = $args->{cb};
+	$args->{cb} = sub {
+		my $track = shift;
+
+		my $client = $args->{client};
+		my $song = $client->playingSong();
+		main::DEBUGLOG && $log->is_debug && $log->debug("Setting bitrate");
+		
+		if ( $song && $song->currentTrack()->url eq $url ) {
+			my $bitrate = $track->bitrate();
+			main::DEBUGLOG && $log->is_debug && $log->debug("bitrate is : $bitrate");
+			$song->bitrate($bitrate);				
+		}
+
+		$realcb->($args->{song}->currentTrack());
+	};	
+	
+	#let LMS sort out the real stream
+	Slim::Utils::Scanner::Remote->scanURL($urlToScan, $args);
 }
 
 
@@ -211,8 +217,11 @@ sub getNextTrack {
 	my $streamtype = getType($masterUrl);
 
 	if ($streamtype eq 'live'){
-		$trackurl ='https://timesradio.wireless.radio/stream';
+		$trackurl = URL_TIMESRADIO_LIVE;
+		$log->debug('streaming ' . $trackurl);
+
 		$song->streamUrl($trackurl);
+		$song->track->bitrate($song->bitrate);
 		$successCb->();
 	}elsif ($streamtype eq 'aod') {
 		$trackurl = getAODUrl($masterUrl);
@@ -228,6 +237,7 @@ sub getNextTrack {
 					my $http = shift;
 					$trackurl = $http->request->uri->as_string;
 					$song->streamUrl($trackurl);
+					$song->track->bitrate($song->bitrate);
 					$http->disconnect;
 					$successCb->();
 				},
@@ -326,7 +336,7 @@ sub getMetadataFor {
 				$image = $icon;
 			}
 			my $meta = {
-				type  => 'TimesRadio',
+				type  => 'MP3 (Times Radio)',
 				title =>  $title,
 				artist => $description,
 				icon  =>  $image,
