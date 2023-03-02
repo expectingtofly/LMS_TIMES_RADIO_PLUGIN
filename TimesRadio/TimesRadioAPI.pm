@@ -21,9 +21,11 @@ sub flushCache { $cache->cleanup(); }
 
 my $isRadioFavourites;
 
+
 sub init {
 	$isRadioFavourites = Slim::Utils::PluginManager->isEnabled('Plugins::RadioFavourites::Plugin');
 }
+
 
 sub toplevel {
 	my ( $client, $callback, $args ) = @_;
@@ -83,7 +85,6 @@ sub getItemActions {
 	};
 }
 
-
 sub getSchedule {
 	my ( $client, $callback, $args, $passDict ) = @_;
 	$log->debug("++getSchedule");
@@ -91,6 +92,28 @@ sub getSchedule {
 	my $d = $passDict->{'scheduledate'};
 
 	my $menu = [];
+	getScheduleCall(
+		$d,
+		sub {
+			my $res = shift;
+			_parseSchedule( $res->content, $menu );
+			$callback->($menu);
+		},
+		sub {
+			$callback->($menu);
+		}
+	);
+	$log->debug("--getSchedule");
+
+	return;
+
+}
+
+
+sub getScheduleCall {
+	my ( $d, $callback, $errorCallback ) = @_;
+
+	$log->debug("++getScheduleCall");
 
 	my $session = Slim::Networking::Async::HTTP->new;
 
@@ -107,20 +130,19 @@ sub getSchedule {
 			request => $request,
 			onBody  => sub {
 				my ( $http, $self ) = @_;
-				my $res = $http->response;
-				_parseSchedule( $res->content, $menu );
-				$callback->($menu);
+				$callback->($http->response);
+
 			},
 			onError => sub {
 				my ( $http, $self ) = @_;
 				my $res = $http->response;
 				$log->error( 'Error status - ' . $res->status_line );
-				$callback->($menu);
+				$errorCallback->();
 			}
 		}
 	);
 
-	$log->debug("--getSchedule");
+	$log->debug("--getScheduleCall");
 	return;
 }
 

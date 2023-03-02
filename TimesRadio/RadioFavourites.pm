@@ -21,6 +21,8 @@ use Slim::Utils::Log;
 use JSON::XS::VersionOneAndTwo;
 use HTTP::Date;
 use Data::Dumper;
+use POSIX qw(strftime);
+use HTTP::Date;
 
 
 my $log = logger('plugin.timesradio');
@@ -52,7 +54,8 @@ sub getStationData {
 				startTime => str2time($json->{'data'}->{'radioOnAirNow'}->{'startTime'}),
 				endTime   => str2time($json->{'data'}->{'radioOnAirNow'}->{'endTime'}),
 				url       => $stationUrl,
-				stationName => $stationName
+				stationName => $stationName,
+				stationImage => '/plugins/TimesRadio/html/images/TimesRadio_svg.png'
 			};
 
 			$cbSuccess->($result);
@@ -71,6 +74,56 @@ sub getStationData {
 	);
 
 	return;
+}
+
+
+sub getStationSchedule {
+	my ( $stationUrl, $stationKey, $stationName, $scheduleDate, $cbSuccess, $cbError) = @_;
+	main::DEBUGLOG && $log->is_debug && $log->debug("++getStationSchedule");
+
+	my $epoch= str2time($scheduleDate);
+
+	my $dt= strftime( '%d %b %Y', localtime($epoch) );
+
+	Plugins::TimesRadio::TimesRadioAPI::getScheduleCall(
+		$dt,
+		sub {
+			my $resp = shift;
+
+			my $json = decode_json $resp->content;
+
+			main::DEBUGLOG && $log->is_debug && $log->debug("Got schedule");
+			main::DEBUGLOG && $log->is_debug && $log->debug($json);
+			my $results = $json->{data}->{radioSchedule}[0]->{shows};
+
+			my $out = [];
+
+			for my $item (@$results) {
+				my $image = $item->{images}[0]->{url};
+				if (!(defined $image)) {
+					$image = 'plugins/TimesRadio/html/images/TimesRadio.png';
+				}
+				my $url = 'times://_aod_' . $item->{id} . '_' . URI::Escape::uri_escape($track);
+				push @$out,
+				  {
+					start => $item->{startTime},
+					end => $item->{endTime},
+					title1 => $item->{title},
+					title2 => $item->{description},
+					image => $image,
+					url => $url,
+				  };				
+			}
+			main::DEBUGLOG && $log->is_debug && $log->debug("Sending it out");
+			main::DEBUGLOG && $log->is_debug && $log->debug($json);
+			$cbSuccess->($out);
+
+		},
+		sub {
+			$log->warn("error: $_[1]");
+			$cbError->("Could not get schedule");
+		}
+	);
 }
 
 

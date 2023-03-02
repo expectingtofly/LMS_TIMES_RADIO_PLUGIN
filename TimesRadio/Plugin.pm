@@ -57,7 +57,8 @@ sub postinitPlugin {
 		Plugins::RadioFavourites::Plugin::addHandler(
 			{
 				handlerFunctionKey => 'timesradio',      #The key to the handler				
-				handlerSub =>  \&Plugins::TimesRadio::RadioFavourites::getStationData          #The operation to handle getting the
+				handlerSub =>  \&Plugins::TimesRadio::RadioFavourites::getStationData,          #The operation to handle getting the
+				handlerSchedule => \&Plugins::TimesRadio::RadioFavourites::getStationSchedule,
 			}
 		);
 	}
