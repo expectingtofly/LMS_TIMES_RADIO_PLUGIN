@@ -13,7 +13,7 @@ use POSIX qw(strftime);
 use HTTP::Date;
 use Digest::MD5 qw(md5_hex);
 
-use constant APIKEY => 'etWuAuwzqUbD2tBXMh5ZP5Qxfs0LZPDK';
+use constant APIKEY => 'b95db8c76fb13e3b521cf868b89a06d9';
 
 my $log = logger('plugin.timesradio');
 my $cache = Slim::Utils::Cache->new();
