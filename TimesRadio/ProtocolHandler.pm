@@ -69,7 +69,7 @@ sub vars {
 
 
 sub readMetaData {
-	my $self = shift;	
+	my $self = shift;
 
 	my $v = $self->vars;
 	
