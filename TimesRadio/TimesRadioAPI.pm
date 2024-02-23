@@ -147,7 +147,13 @@ sub _parseSchedule {
 			$track = 'NO TRACK';
 		}
 
-		my $image = $item->{images}[0]->{url};
+		my $image;
+
+		if (scalar @{ $item->{images} }) {
+			my @thumbnails = grep { $_->{'width'} == 720 && $_->{'metadata'}[0] eq 'thumbnail' } @{ $item->{images} };
+			$image = $thumbnails[0]->{'url'};
+		}
+		
 		if (!(defined $image)) {
 			$image = 'plugins/TimesRadio/html/images/TimesRadio.png';
 		}
