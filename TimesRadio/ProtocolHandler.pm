@@ -41,6 +41,7 @@ sub new {
 
 	$log->info( 'Remote streaming Times Radio : ' . $streamUrl . ' actual url' . $song->track()->url);
 
+	my $isLive = (getType($song->track()->url) eq 'live');
 
 	my $sock = $class->SUPER::new(
 		{
@@ -55,7 +56,7 @@ sub new {
 	${*$sock}{'client'} = $args->{'client'};
 	${*$sock}{'vars'} = {
 		'metaDataCheck' => time(),
-		'isLive' => (getType($song->track()->url) eq 'live'),
+		'isLive' => $isLive,
 	};
 
 	return $sock;
@@ -83,31 +84,62 @@ sub readMetaData {
 			Plugins::TimesRadio::TimesRadioAPI::getOnAir(
 				sub {
 					my $json = shift;
+					main::DEBUGLOG && $log->is_debug && $log->debug('on Air : ' . Dumper($json->{'data'}->{'radioOnAirNow'}));
+					my $duration = str2time( $json->{'data'}->{'radioOnAirNow'}->{'endTime'}) - str2time( $json->{'data'}->{'radioOnAirNow'}->{'startTime'});
+					
+					my $image;
+					if (scalar @{$json->{'data'}->{'radioOnAirNow'}->{'images'}}) {
+						my @thumbnails = grep { $_->{'width'} == 720 && $_->{'metadata'}[0] eq 'thumbnail' } @{$json->{'data'}->{'radioOnAirNow'}->{'images'}};
+						$image = $thumbnails[0]->{'url'};
+					}
+
 					my $meta = {
 						type  => 'MP3 (Times Radio)',
 						title =>  $json->{'data'}->{'radioOnAirNow'}->{'title'},
 						artist => $json->{'data'}->{'radioOnAirNow'}->{'description'},
-						icon  =>  $json->{'data'}->{'radioOnAirNow'}->{'images'}[0]->{'url'},
-						cover =>  $json->{'data'}->{'radioOnAirNow'}->{'images'}[0]->{'url'},
+						icon  =>  $image,
+						cover =>  $image,
+						duration => $duration,
+						secs => $duration, 
 					};
-
+					$song->duration($duration);
 					#place on the song
 					$song->pluginData( meta  => $meta );
 
 					#when do we need to check again
-					$v->{'metaDataCheck'} = str2time( $json->{'data'}->{'radioOnAirNow'}->{'endTime'});
+					$v->{'metaDataCheck'} = str2time( $json->{'data'}->{'radioOnAirNow'}->{'endTime'}) + 5;
 
 					# protection for their api
 
-					if ($v->{'metaDataCheck'} < (time() + 180)) {
-					 	$v->{'metaDataCheck'} =  time() + 180;
+					if ($v->{'metaDataCheck'} < (time() + 30)) {
+					 	$v->{'metaDataCheck'} =  time() + 30;
 					}
 
 					main::INFOLOG && $log->is_info && $log->info('We will check again ' .	$v->{'metaDataCheck'} );
 
 
 					my $client = ${*$self}{'client'};
+					my $offset =  time() - str2time( $json->{'data'}->{'radioOnAirNow'}->{'startTime'} );
 
+					main::INFOLOG && $log->is_info && $log->info("Offset is $offset from " . time());
+					
+					my $position_in_seconds = $client->songElapsedSeconds();
+					
+
+					#fix progress bar 
+					$client->playingSong()->can('startOffset')
+					? $client->playingSong()->startOffset( $offset - $position_in_seconds )
+					: ( $client->playingSong()->{startOffset} = ($offset - $position_in_seconds) );
+					
+					$client->master()->remoteStreamStartTime( Time::HiRes::time() - $offset );
+					
+					$client->playingSong()->duration( $duration ); 
+					$song->track->secs( $duration ); 
+					
+					Slim::Music::Info::setCurrentTitle( Slim::Player::Playlist::url($client), $json->{'data'}->{'radioOnAirNow'}->{'title'}, $client ); 
+					Slim::Control::Request::notifyFromArray( $client, ['newmetadata'] );
+									
+					
 					Slim::Control::Request::notifyFromArray( $client, ['newmetadata'] );
 
 					main::INFOLOG && $log->is_info && $log->info('meta data update');
@@ -288,9 +320,6 @@ sub getMetadataFor {
 
 			if (my $meta = $song->pluginData('meta')) {
 
-				# if live, the only place it will be is on the song
-				main::DEBUGLOG && $log->is_debug && $log->debug("meta from song");
-
 				return $meta;
 			}
 
@@ -329,7 +358,12 @@ sub getMetadataFor {
 
 			my $title       = $item->{title} . ' ' . substr($item->{startTime},0,10);
 			my $description = $item->{description};
-			my $image = $item->{images}[0]->{url};
+			
+			my $image;
+			if (scalar @{$item->{images}}) {
+				my @thumbnails = grep { $_->{'width'} == 720 && $_->{'metadata'}[0] eq 'thumbnail' } @{$item->{images}};
+				$image = $thumbnails[0]->{'url'};
+			}
 
 			my $duration = str2time($item->{endTime}) - str2time($item->{startTime});
 			if (!(defined $image)) {
