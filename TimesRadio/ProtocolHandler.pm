@@ -84,19 +84,19 @@ sub readMetaData {
 			Plugins::TimesRadio::TimesRadioAPI::getOnAir(
 				sub {
 					my $json = shift;
-					main::DEBUGLOG && $log->is_debug && $log->debug('on Air : ' . Dumper($json->{'data'}->{'radioOnAirNow'}));
-					my $duration = str2time( $json->{'data'}->{'radioOnAirNow'}->{'endTime'}) - str2time( $json->{'data'}->{'radioOnAirNow'}->{'startTime'});
+					main::DEBUGLOG && $log->is_debug && $log->debug('on Air : ' . Dumper($json->{'data'}->{'onAirNow'}));
+					my $duration = str2time( $json->{'data'}->{'onAirNow'}->{'endTime'}) - str2time( $json->{'data'}->{'onAirNow'}->{'startTime'});
 					
 					my $image;
-					if (scalar @{$json->{'data'}->{'radioOnAirNow'}->{'images'}}) {
-						my @thumbnails = grep { $_->{'width'} == 720 && $_->{'metadata'}[0] eq 'thumbnail' } @{$json->{'data'}->{'radioOnAirNow'}->{'images'}};
+					if (scalar @{$json->{'data'}->{'onAirNow'}->{'images'}}) {
+						my @thumbnails = grep { $_->{'width'} == 720 && $_->{'metadata'}[0] eq 'thumbnail' } @{$json->{'data'}->{'onAirNow'}->{'images'}};
 						$image = $thumbnails[0]->{'url'};
 					}
 
 					my $meta = {
 						type  => 'MP3 (Times Radio)',
-						title =>  $json->{'data'}->{'radioOnAirNow'}->{'title'},
-						artist => $json->{'data'}->{'radioOnAirNow'}->{'description'},
+						title =>  $json->{'data'}->{'onAirNow'}->{'title'},
+						artist => $json->{'data'}->{'onAirNow'}->{'description'},
 						icon  =>  $image,
 						cover =>  $image,
 						duration => $duration,
@@ -107,7 +107,7 @@ sub readMetaData {
 					$song->pluginData( meta  => $meta );
 
 					#when do we need to check again
-					$v->{'metaDataCheck'} = str2time( $json->{'data'}->{'radioOnAirNow'}->{'endTime'}) + 5;
+					$v->{'metaDataCheck'} = str2time( $json->{'data'}->{'onAirNow'}->{'endTime'}) + 5;
 
 					# protection for their api
 
@@ -119,7 +119,7 @@ sub readMetaData {
 
 
 					my $client = ${*$self}{'client'};
-					my $offset =  time() - str2time( $json->{'data'}->{'radioOnAirNow'}->{'startTime'} );
+					my $offset =  time() - str2time( $json->{'data'}->{'onAirNow'}->{'startTime'} );
 
 					main::INFOLOG && $log->is_info && $log->info("Offset is $offset from " . time());
 					
@@ -136,7 +136,7 @@ sub readMetaData {
 					$client->playingSong()->duration( $duration ); 
 					$song->track->secs( $duration ); 
 					
-					Slim::Music::Info::setCurrentTitle( Slim::Player::Playlist::url($client), $json->{'data'}->{'radioOnAirNow'}->{'title'}, $client ); 
+					Slim::Music::Info::setCurrentTitle( Slim::Player::Playlist::url($client), $json->{'data'}->{'onAirNow'}->{'title'}, $client ); 
 					Slim::Control::Request::notifyFromArray( $client, ['newmetadata'] );
 									
 					
