@@ -46,11 +46,11 @@ sub getStationData {
 			my $json = shift;
 
 			my $result = {
-				title =>  $json->{'data'}->{'radioOnAirNow'}->{'title'},
-				description => $json->{'data'}->{'radioOnAirNow'}->{'description'},
-				image => $json->{'data'}->{'radioOnAirNow'}->{'images'}[0]->{'url'},
-				startTime => str2time($json->{'data'}->{'radioOnAirNow'}->{'startTime'}),
-				endTime   => str2time($json->{'data'}->{'radioOnAirNow'}->{'endTime'}),
+				title =>  $json->{'data'}->{'onAirNow'}->{'title'},
+				description => $json->{'data'}->{'onAirNow'}->{'description'},
+				image => $json->{'data'}->{'onAirNow'}->{'images'}[0]->{'url'},
+				startTime => str2time($json->{'data'}->{'onAirNow'}->{'startTime'}),
+				endTime   => str2time($json->{'data'}->{'onAirNow'}->{'endTime'}),
 				url       => $stationUrl,
 				stationName => $stationName
 			};

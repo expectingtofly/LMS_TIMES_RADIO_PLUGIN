@@ -86,41 +86,49 @@ sub getItemActions {
 
 sub getSchedule {
 	my ( $client, $callback, $args, $passDict ) = @_;
-	$log->debug("++getSchedule");
+	main::DEBUGLOG && $log->is_debug && $log->debug("++getSchedule");
 
 	my $d = $passDict->{'scheduledate'};
-
 	my $menu = [];
 
-	my $session = Slim::Networking::Async::HTTP->new;
+	getAccessToken(sub {
+		my $token = shift;			
 
-	my $request =HTTP::Request->new( POST => 'https://newskit.newsapis.co.uk/graphql' );
-	$request->header( 'Content-Type' => 'application/json' );
-	$request->header( 'x-api-key'    => APIKEY );
+		my $session = Slim::Networking::Async::HTTP->new;
 
-	my $body = '{'. '"operationName":"GetRadioSchedule",'. '"variables":{"from":"'. $d. '","to":"'. $d . '"},'. '"query":"query GetRadioSchedule($from: Date, $to: Date) {\n  radioSchedule(stationId: timesradio, from: $from, to: $to) {\n    id\n    date\n    shows {\n      id\n      title\n      description\n      startTime\n      endTime\n      recording {\n        url\n        __typename\n      }\n      images {\n        url\n        width\n        metadata\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"}';
+		my $request =HTTP::Request->new( POST => 'https://api.news.co.uk/audio/v1/graph' );
+		$request->header( 'Content-Type' => 'application/json' );
+		$request->header( 'Authorization'    => "Bearer $token" );
 
-	$request->content($body);
+		my $body = '{'. '"operationName":"GetRadioSchedule",'. '"variables":{"from":"'. $d. '","to":"'. $d . '"},"query":"query GetRadioSchedule($from: Date, $to: Date) {\n  schedule(stationId: timesradio, from: $from, to: $to) {\n    id\n    date\n    shows {\n      id\n      title\n      description\n      startTime\n      endTime\n      recording {\n        url\n        __typename\n      }\n      images {\n        url\n        width\n        metadata\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"}';
 
-	$session->send_request(
-		{
-			request => $request,
-			onBody  => sub {
-				my ( $http, $self ) = @_;
-				my $res = $http->response;
-				_parseSchedule( $res->content, $menu );
-				$callback->($menu);
-			},
-			onError => sub {
-				my ( $http, $self ) = @_;
-				my $res = $http->response;
-				$log->error( 'Error status - ' . $res->status_line );
-				$callback->($menu);
+		$request->content($body);
+
+		$session->send_request(
+			{
+				request => $request,
+				onBody  => sub {
+					my ( $http, $self ) = @_;
+					my $res = $http->response;
+					_parseSchedule( $res->content, $menu );
+					$callback->($menu);
+				},
+				onError => sub {
+					my ( $http, $self ) = @_;
+					my $res = $http->response;
+					$log->error( 'Error status - ' . $res->status_line );
+					$callback->($menu);
+				}
 			}
-		}
-	);
+		);
 
-	$log->debug("--getSchedule");
+	},
+	sub {
+		$log->error( "Could not get API token" );
+		$callback->($menu);
+	});
+
+	main::DEBUGLOG && $log->is_debug && $log->debug("--getSchedule");
 	return;
 }
 
@@ -128,11 +136,11 @@ sub getSchedule {
 sub _parseSchedule {
 	my $content = shift;
 	my $menu    = shift;
-	$log->debug("++_parseSchedule");
+	main::DEBUGLOG && $log->is_debug && $log->debug("++_parseSchedule");	
 
 	my $json = decode_json $content;
 
-	my $results = $json->{data}->{radioSchedule}[0]->{shows};
+	my $results = $json->{data}->{schedule}[0]->{shows};
 
 	for my $item (@$results) {
 		my $sttim = str2time( $item->{'startTime'} );
@@ -179,14 +187,14 @@ sub _parseSchedule {
 			'artist'    => $artist,
 		  };
 	}
-	$log->debug("--_parseSchedule");
+	main::DEBUGLOG && $log->is_debug && $log->debug("--_parseSchedule");
 	return;
 }
 
 
 sub createDayMenu {
 	my ( $client, $callback, $args, $passDict ) = @_;
-	$log->debug("++createDayMenu");
+	main::DEBUGLOG && $log->is_debug && $log->debug("++createDayMenu");
 
 	my $menu = [];
 	my $now = time();
@@ -201,7 +209,7 @@ sub createDayMenu {
 		}else {
 			$d = strftime( '%A %d/%m/%Y', localtime($epoch) );
 		}
-		my $scheduledate = strftime( '%d %b %Y', localtime($epoch) );
+		my $scheduledate = strftime( '%Y-%m-%d', localtime($epoch) );
 
 		push @$menu,
 		  {
@@ -217,7 +225,7 @@ sub createDayMenu {
 
 	}
 	$callback->($menu);
-	$log->debug("--createDayMenu");
+	main::DEBUGLOG && $log->is_debug && $log->debug("--createDayMenu");
 	return;
 }
 
@@ -225,28 +233,30 @@ sub createDayMenu {
 sub _cacheMenu {
 	my $url  = shift;
 	my $menu = shift;
-	$log->debug("++_cacheMenu");
+	my $secs = shift;
+
+	main::DEBUGLOG && $log->is_debug && $log->debug("++_cacheMenu");
 	my $cacheKey = 'TR:' . md5_hex($url);
 
-	$cache->set( $cacheKey, \$menu, 120 );
+	$cache->set( $cacheKey, \$menu, $secs );
 
-	$log->debug("--_cacheMenu");
+	main::DEBUGLOG && $log->is_debug && $log->debug("--_cacheMenu");
 	return;
 }
 
 
 sub _getCachedMenu {
 	my $url = shift;
-	$log->debug("++_getCachedMenu");
+	main::DEBUGLOG && $log->is_debug && $log->debug("++_getCachedMenu");
 
 	my $cacheKey = 'TR:' . md5_hex($url);
 
 	if ( my $cachedMenu = $cache->get($cacheKey) ) {
 		my $menu = ${$cachedMenu};
-		$log->debug("--_getCachedMenu got cached menu");
+		main::DEBUGLOG && $log->is_debug && $log->debug("--_getCachedMenu got cached menu");
 		return $menu;
 	}else {
-		$log->debug("--_getCachedMenu no cache");
+		main::DEBUGLOG && $log->is_debug && $log->debug("--_getCachedMenu no cache");
 		return;
 	}
 }
@@ -254,7 +264,7 @@ sub _getCachedMenu {
 
 sub _renderMenuCodeRefs {
 	my $menu = shift;
-	$log->debug("++_renderMenuCodeRefs");
+	main::DEBUGLOG && $log->is_debug && $log->debug("++_renderMenuCodeRefs");
 
 	for my $menuItem (@$menu) {
 		my $codeRef = $menuItem->{passthrough}[0]->{'codeRef'};
@@ -266,7 +276,7 @@ sub _renderMenuCodeRefs {
 			$log->error("Unknown Code Reference : $codeRef");
 		}
 	}
-	$log->debug("--_renderMenuCodeRefs");
+	main::DEBUGLOG && $log->is_debug && $log->debug("--_renderMenuCodeRefs");
 	return;
 }
 
@@ -274,34 +284,45 @@ sub _renderMenuCodeRefs {
 sub getOnAir {
 	my $cbY = shift;
 	my $cbN = shift;
-	$log->debug("++getOnAir");
-	my $session = Slim::Networking::Async::HTTP->new;
+	main::DEBUGLOG && $log->is_debug && $log->debug("++getOnAir");
 
-	my $request =HTTP::Request->new( POST => 'https://newskit.newsapis.co.uk/graphql' );
-	$request->header( 'Content-Type' => 'application/json' );
-	$request->header( 'x-api-key'    => APIKEY );
+	getAccessToken(sub {
+		my $token = shift;
 
-	my $body = '{"operationName":"GetRadioOnAirNow","variables":{},"query":"query GetRadioOnAirNow {\n  radioOnAirNow(stationId: timesradio) {\n    id\n    title\n    description\n    startTime\n    endTime\n    images {\n      url\n      width\n      metadata\n      __typename\n    }\n    __typename\n  }\n}\n"}';
-	$request->content($body);
+		my $session = Slim::Networking::Async::HTTP->new;
 
-	$session->send_request(
-		{
-			request => $request,
-			onBody  => sub {
-				my ( $http, $self ) = @_;
-				my $res = $http->response->content;
-				my $json = decode_json $res;
-				$cbY->($json);
-			},
-			onError => sub {
-				my ( $http, $self ) = @_;
-				my $res = $http->response;
-				$log->error( 'Error status - ' . $res->status_line );
-				$cbN->();
-			},
+		my $request =HTTP::Request->new( POST => 'https://api.news.co.uk/audio/v1/graph' );
+		$request->header( 'Content-Type' => 'application/json' );
+		$request->header( 'Authorization'    => "Bearer $token" );		
+
+		my $body = '{"operationName":"GetRadioOnAirNow","variables":{},"query":"query GetRadioOnAirNow {\n  onAirNow(stationId: timesradio) {\n    id\n    title\n    description\n    startTime\n    endTime\n    images {\n      url\n      width\n      metadata\n      __typename\n    }\n    __typename\n  }\n}\n"}';
+		$request->content($body);
+
+		$session->send_request(
+			{
+				request => $request,
+				onBody  => sub {
+					my ( $http, $self ) = @_;
+					my $res = $http->response->content;
+					my $json = decode_json $res;
+					$cbY->($json);
+				},
+				onError => sub {
+					my ( $http, $self ) = @_;
+					my $res = $http->response;
+					$log->error( 'Error status - ' . $res->status_line );
+					$cbN->();
+				},
+			}
+		);
+	},
+	sub {
+		log->error( 'Could not get access token' );
+		$cbN->();
 		}
 	);
-	$log->debug("--getOnAir");
+
+	main::DEBUGLOG && $log->is_debug && $log->debug("--getOnAir");
 	return;
 }
 
@@ -310,45 +331,85 @@ sub getAOD {
 	my $id = shift;
 	my $cbY = shift;
 	my $cbN = shift;
-	$log->debug("++getOnAir");
-	my $session = Slim::Networking::Async::HTTP->new;
+	main::DEBUGLOG && $log->is_debug && $log->debug("++getAOD");
 
-	my $request =HTTP::Request->new( POST => 'https://newskit.newsapis.co.uk/graphql' );
-	$request->header( 'Content-Type' => 'application/json' );
-	$request->header( 'x-api-key'    => APIKEY );
-	my $d = substr($id,0,4) . '-' . substr($id,4,2) . '-' . substr($id,6,2);
-	my $body = '{'. '"operationName":"GetRadioSchedule",'. '"variables":{"from":"'. $d. '","to":"'. $d . '"},' .  '"query":"query GetRadioSchedule($from: Date, $to: Date) {\n  radioSchedule(stationId: timesradio, from: $from, to: $to) {\n    id\n    date\n    shows {\n      id\n      title\n      description\n      startTime\n      endTime\n      recording {\n        url\n        __typename\n      }\n      images {\n        url\n        width\n        metadata\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"}';
+	getAccessToken(sub {
+		my $token = shift;
 
-	$request->content($body);
 
-	$session->send_request(
-		{
-			request => $request,
-			onBody  => sub {
-				my ( $http, $self ) = @_;
-				my $res = $http->response->content;
-				my $json = decode_json $res;
+		my $session = Slim::Networking::Async::HTTP->new;
 
-				my $results = $json->{data}->{radioSchedule}[0]->{shows};
-				for my $item (@$results) {
-					if ( $item->{id} eq $id ) {
-						$cbY->($item);
-						return;
+		my $request =HTTP::Request->new( POST => 'https://api.news.co.uk/audio/v1/graph' );
+		$request->header( 'Content-Type' => 'application/json' );	
+		$request->header( 'Authorization'    => "Bearer $token" );				
+
+
+		my $d = substr($id,0,4) . '-' . substr($id,4,2) . '-' . substr($id,6,2);
+		my $body = '{'. '"operationName":"GetRadioSchedule",'. '"variables":{"from":"'. $d. '","to":"'. $d . '"},' .  '"query":"query GetRadioSchedule($from: Date, $to: Date) {\n  schedule(stationId: timesradio, from: $from, to: $to) {\n    id\n    date\n    shows {\n      id\n      title\n      description\n      startTime\n      endTime\n      recording {\n        url\n        __typename\n      }\n      images {\n        url\n        width\n        metadata\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"}';
+
+		$request->content($body);
+
+		$session->send_request(
+			{
+				request => $request,
+				onBody  => sub {
+					my ( $http, $self ) = @_;
+					my $res = $http->response->content;
+
+					my $json = decode_json $res;
+
+					my $results = $json->{data}->{schedule}[0]->{shows};
+					for my $item (@$results) {
+						if ( $item->{id} eq $id ) {
+							$cbY->($item);
+							return;
+						}
 					}
-				}
-				$log->error('Error no AOD meta found');
-				$cbN->();
-				return;
-			},
-			onError => sub {
-				my ( $http, $self ) = @_;
-				my $res = $http->response;
-				$log->error( 'Error status - ' . $res->status_line );
-				$cbN->();
-			},
+					$log->error('Error no AOD meta found');
+					$cbN->();
+					return;
+				},
+				onError => sub {
+					my ( $http, $self ) = @_;
+					my $res = $http->response;
+					$log->error( 'Error status - ' . $res->status_line );
+					$cbN->();
+				},
+			}
+		);
+	},
+	sub {
+		$log->error('Error could not get access token');
+		$cbN->();
 		}
 	);
-	$log->debug("--getOnAir");
+	
+	main::DEBUGLOG && $log->is_debug && $log->debug("--getAOD");
 	return;
 }
+
+sub getAccessToken {
+	my $cbY = shift;
+	my $cbN = shift;
+
+	if (my $token = _getCachedMenu('https://www.thetimes.com/radio/token')) {
+		$cbY->($token);
+	} else {	
+		Slim::Networking::SimpleAsyncHTTP->new(
+			sub {
+				my $http = shift;
+				my $JSON = decode_json ${ $http->contentRef };
+				my $token = $JSON->{'access_token'};
+				_cacheMenu('https://www.thetimes.com/radio/token', $token, 86400);
+				$cbY->($token);
+			},
+			sub {
+				# Called when no response was received or an error occurred.
+				$log->warn("error: $_[1]");
+				$cbN->();
+			}
+		)->get("https://www.thetimes.com/radio/token");
+	}
+}
+
 1;
