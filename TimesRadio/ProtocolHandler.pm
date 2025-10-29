@@ -16,7 +16,7 @@ use Plugins::TimesRadio::TimesRadioAPI;
 
 use Data::Dumper;
 
-use constant URL_TIMESRADIO_LIVE => 'https://timesradio.wireless.radio/stream';
+use constant URL_TIMESRADIO_LIVE => 'https://times.live.stream.broadcasting.news/stream';
 
 my $log = logger('plugin.timesradio');
 my $cache = Slim::Utils::Cache->new();
