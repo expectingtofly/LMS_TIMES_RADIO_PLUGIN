@@ -16,7 +16,7 @@ use Plugins::TimesRadio::TimesRadioAPI;
 
 use Data::Dumper;
 
-use constant URL_TIMESRADIO_LIVE => 'https://times.live.stream.broadcasting.news/stream';
+use constant URL_TIMESRADIO_LIVE => 'https://timesradio.wireless.radio/stream';
 
 my $log = logger('plugin.timesradio');
 my $cache = Slim::Utils::Cache->new();
@@ -229,11 +229,24 @@ sub scanUrl {
 		if ( $song && $song->currentTrack()->url eq $url ) {
 			my $bitrate = $track->bitrate();
 			main::DEBUGLOG && $log->is_debug && $log->debug("bitrate is : $bitrate");
-			$song->bitrate($bitrate);				
+			$song->bitrate($bitrate);	
+
+			
+			my $streamformat = $track->content_type();
+			main::DEBUGLOG && $log->is_debug && $log->debug("streamformat is : $streamformat");
+			$song->pluginData( ScannedFormat => $streamformat );				
 		}
 
 		$realcb->($args->{song}->currentTrack());
 	};	
+
+	if (Plugins::TimesRadio::ProtocolHandler::getType($url) eq 'live') {
+		$urlToScan = URL_TIMESRADIO_LIVE;
+		main::DEBUGLOG && $log->is_debug && $log->debug("scanurl LIVE $urlToScan");		
+	}else{
+		$urlToScan = Plugins::TimesRadio::ProtocolHandler::getAODUrl($url);
+		main::DEBUGLOG && $log->is_debug && $log->debug("scanurl AOD $urlToScan");		
+	}
 	
 	#let LMS sort out the real stream
 	Slim::Utils::Scanner::Remote->scanURL($urlToScan, $args);
@@ -248,38 +261,49 @@ sub getNextTrack {
 	my $trackurl = '';
 	my $streamtype = getType($masterUrl);
 
-	if ($streamtype eq 'live'){
-		$trackurl = URL_TIMESRADIO_LIVE;
-		$log->debug('streaming ' . $trackurl);
+	main::DEBUGLOG && $log->is_debug && $log->debug("get next track");
 
-		$song->streamUrl($trackurl);
-		$song->track->bitrate($song->bitrate);
-		$successCb->();
+	
+
+	if ($streamtype eq 'live'){
+		main::DEBUGLOG && $log->is_debug && $log->debug("live");
+		_getRedirectedStreamURL(URL_TIMESRADIO_LIVE,
+			sub {
+				my $rediredirectedUrl = shift;	
+
+				main::DEBUGLOG && $log->is_debug && $log->debug("Redirected URL is : $rediredirectedUrl");			
+
+				$song->streamUrl($rediredirectedUrl);
+				$song->track->bitrate($song->bitrate);
+
+				my $contentType = $song->pluginData('ScannedFormat');
+				main::DEBUGLOG && $log->is_debug && $log->debug("Setting content type to $contentType");
+				$song->track->content_type($contentType);
+
+				$successCb->();
+			},
+			sub {
+				$log->error("Invalid URL");					
+				$errorCb->();
+			}				
+		);
+		
 	}elsif ($streamtype eq 'aod') {
 		$trackurl = getAODUrl($masterUrl);
 		$log->debug('streaming ' . $trackurl);
 
-		#always a redirect for aod
-		my $http = Slim::Networking::Async::HTTP->new;
-		my $request = HTTP::Request->new( GET => $trackurl );
-		$http->send_request(
-			{
-				request     => $request,
-				onHeaders => sub {
-					my $http = shift;
-					$trackurl = $http->request->uri->as_string;
-					$song->streamUrl($trackurl);
-					$song->track->bitrate($song->bitrate);
-					$http->disconnect;
-					$successCb->();
-				},
-				onError => sub {
-					my ( $http, $self ) = @_;
-					my $res = $http->response;
-					$log->error('Error status - ' . $res->status_line );
-					$errorCb->();
-				}
-			}
+		_getRedirectedStreamURL($trackurl,
+			sub {
+				my $rediredirectedUrl = shift;				
+
+				$song->streamUrl($rediredirectedUrl);
+				$song->track->bitrate($song->bitrate);
+				$successCb->();
+			},
+			sub {
+				$log->error("$trackurl  is invalid");					
+				$errorCb->();
+			}				
 		);
 
 
@@ -290,8 +314,6 @@ sub getNextTrack {
 
 	return;
 }
-
-sub getFormatForURL () { 'mp3' }
 
 	
 # If an audio stream fails, keep playing
@@ -441,4 +463,33 @@ sub getIcon {
 
 	return Plugins::TimesRadio::Plugin->_pluginDataFor('icon');
 }
+
+sub _getRedirectedStreamURL {
+	my ( $url, $cbY, $cbN ) = @_;
+
+	main::DEBUGLOG && $log->is_debug && $log->debug("Getting redirection for  : $url");
+	
+	my $http = Slim::Networking::Async::HTTP->new;
+	my $request = HTTP::Request->new( GET => $url );
+	$http->send_request(
+		{
+			request     => $request,
+			onHeaders => sub {
+				my $http = shift;
+				my $trackurl = $http->request->uri->as_string;
+				main::DEBUGLOG && $log->is_debug && $log->debug("Redirected URL is : $trackurl");
+				$cbY->($trackurl);
+			},
+			onError => sub {
+				my ( $http, $self ) = @_;
+				my $res = $http->response;
+				$log->error('Error status - ' . $res->status_line );
+				$cbN->();
+			}
+		}
+	);
+}
+
+
+
 1;
